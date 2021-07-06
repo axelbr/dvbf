@@ -129,6 +129,7 @@ class DVBF(nn.Module):
         q_w = torch.distributions.MultivariateNormal(w_mean, torch.diag_embed(w_std))
         prior_w = torch.distributions.MultivariateNormal(loc=torch.zeros_like(w_mean), covariance_matrix=torch.eye(self.dim_w).to(w_mean))
         loss = logprob_x.sum() - torch.distributions.kl_divergence(q_w, prior_w).sum()
+        #loss = c * p_x.log_prob(x) - q_w.log_prob(w) + c * prior_w.log_prob(w)
         return -loss
 
 

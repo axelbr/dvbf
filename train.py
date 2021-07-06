@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.distributions as td
+from torch.optim.lr_scheduler import ExponentialLR
 from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import TensorDataset, DataLoader, Dataset
@@ -22,8 +23,8 @@ dim_u = 1
 dim_a = 16
 dim_w = 3
 batch_size = 32
-num_iterations = int(10**5)
-learning_rate = 0.0005
+num_iterations = int(5000)
+learning_rate = 0.01
 
 
 def make_env():
@@ -77,7 +78,7 @@ def train():
     #dvbf = torch.load('dvbf.th').to(device)
 
     optimizer = torch.optim.Adam(dvbf.parameters(), lr=learning_rate)
-
+    scheduler = ExponentialLR(optimizer, gamma=0.9)
     for i in range(num_iterations):
         total_loss = 0
 
@@ -89,7 +90,9 @@ def train():
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
+        scheduler.step()
         writer.add_scalar('loss', scalar_value=total_loss, global_step=i)
+        writer.add_scalar('learning rate', scalar_value=scheduler.get_lr()[0], global_step=i)
 
         dvbf.train(False)
         total_val_loss = 0
@@ -101,11 +104,12 @@ def train():
         print(f'[Epoch {i}] train_loss: {total_loss}, val_loss: {total_val_loss}')
 
         if i % 100 == 0:
-            torch.save(dvbf, 'dvbf.th')
+            torch.save(dvbf, 'checkpoints/dvbf.th')
+            generate(filename=f'dvbf-epoch-{i}')
 
     torch.save(dvbf, 'dvbf.th')
 
-def generate():
+def generate(filename):
     dvbf = torch.load('dvbf.th').to('cpu')
     dataset = load_data('dataset/validation.npz')
     x = dataset[0][0].unsqueeze(dim=0)
@@ -122,12 +126,11 @@ def generate():
         gt = format(x[:, i])
         pred = format(reconstructed[:, i])
         img = np.concatenate([gt, pred], axis=1).squeeze()
-        cv2.imshow(mat=img, winname='generated')
-        cv2.waitKey(50)
+        #cv2.imshow(mat=img, winname='generated')
+        #cv2.waitKey(50)
         frames.append(img)
-    with imageio.get_writer("generated.mp4", mode="I") as writer:
+    with imageio.get_writer(f"checkpoints/{filename}.mp4", mode="I") as writer:
         for idx, frame in enumerate(frames):
-            print("Adding frame to GIF file: ", idx + 1)
             writer.append_data(frame)
 
 
